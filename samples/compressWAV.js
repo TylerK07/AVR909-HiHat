@@ -43,9 +43,9 @@ function processWAVFile( fileName ){
   let fileData = new binStream( FS.readFileSync( `./${fileName}`) );
   
   let headerInfo = {
-	  c0_id:     fileData.readString(4),
-	  c0_size:   fileData.readInt32LE(),
-	  c0_format: fileData.readString(4),
+	  c0_id:              fileData.readString(4),
+	  c0_size:            fileData.readInt32LE(),
+	  c0_format:          fileData.readString(4),
 	  c1_id:              fileData.readString(4),
 	  c1_size:            fileData.readInt32LE(),
 	  c1_audio_format:    fileData.readInt16LE(),
@@ -78,39 +78,44 @@ function processWAVFile( fileName ){
   let image = new Jimp(headerInfo.c2_size, 64 );
 	let x = 0;
 	for( let i = 0; i < numChunks; i++ ){
-		let b1 = fileData.readUInt8();
-		let b2 = fileData.readUInt8();
-		let b3 = fileData.readUInt8();
-		let b4 = fileData.readUInt8();
-	
+
+		// Read the next 4 bytes
+		let b1 = fileData.readUInt8();// & 0b11111100;
+		let b2 = fileData.readUInt8();// & 0b11111100;
+		let b3 = fileData.readUInt8();// & 0b11111100;
+		let b4 = fileData.readUInt8();// & 0b11111100;
+
+		// Plot each of the bytes onto the waveform image
 		image.setPixelColor(Jimp.rgbaToInt(0x00, 0xFF, 0xFF, 0xFF), ++x, b1>>>2);
 		image.setPixelColor(Jimp.rgbaToInt(0x00, 0xFF, 0xFF, 0xFF), ++x, b2>>>2);
 		image.setPixelColor(Jimp.rgbaToInt(0x00, 0xFF, 0xFF, 0xFF), ++x, b3>>>2);
 		image.setPixelColor(Jimp.rgbaToInt(0x00, 0xFF, 0xFF, 0xFF), ++x, b4>>>2);
-	
-	
 
-		let o1 = (b1 & 0xFC) | ((b2 >> 6) & 0x03);
-		let o2 = ((b2<<2) & 0xF0) | ((b3>>4) & 0xFF);
-		let o3 = ((b3<<4) & 0xC0) | ((b4>>2) & 0xFF);
 
+	  // Compress the 4 bytes into 3 by stripping out the lowest 2 bits of each byte
+		let o1 = (  b1     | (b2>>6) ) & 0xFF;
+		let o2 = ( (b2<<2) | (b3>>4) ) & 0xFF;
+		let o3 = ( (b3<<4) | (b4>>2) ) & 0xFF;
+
+
+
+	  // Write the values of each byte in "0xHH," hex format to an output string
 		outStr += `0x${toHex(o1)},`;  	
 		outStr += `0x${toHex(o2)},`;  	
 		outStr += `0x${toHex(o3)},`;  	
 
 	}
 
-	image.write('output.png', (err) => {
-	  if (err) throw err;
-	});
-	
-	outStr = outStr.substr(0, outStr.length-1);
-  
-  let createDebugFile = true;
-  if( createDebugFile ){
-    FS.writeFileSync("debug.js", `sample = [${outStr}];`);
-  }
+	// Write out the image data to a png file
+	image.write('originalWav.png', (err) => { if (err) throw err; });
 
+	// Strip off the last comma
+	outStr = outStr.substr(0, outStr.length-1);
+
+	// Generate a debug.js file that is formatted in javascript so we can include it in visualizeWav.js
+  FS.writeFileSync("debug.js", `sample = [${outStr}];`);
+
+	// Format the output string to be a .h header file that can be included in our program
   outStr = `#ifndef SAMPLE_H\n#define SAMPLE_H\nconst unsigned char sample[${numChunks*3}] PROGMEM = {${outStr}}\n#endif`;
   return( outStr );
 }

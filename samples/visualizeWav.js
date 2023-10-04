@@ -19,8 +19,28 @@ let image = new Jimp(SAMPLE_SIZE, 64, function (err, image) {
   if (err) throw err;
 
   let output = "";
+  let bufferIndex = 4
+  let sampBuffer = [0,0,0,0];
+  
 
   while( sampCounter < SAMPLE_SIZE ){
+
+    if(bufferIndex == 4 ){ // Read the next 3 bytes
+      let b0 = sample[ sampCounter++ ];
+      let b1 = sample[ sampCounter++ ];
+      let b2 = sample[ sampCounter++ ];
+
+      sampBuffer[0] = b0 & 0b11111100;
+      sampBuffer[1] = ( (b0 << 6) | (b1 >> 2) ) & 0b11111100;
+      sampBuffer[2] = ( (b1 << 4) | (b2 >> 4) ) & 0b11111100;
+      sampBuffer[3] = (b2 << 2) & 0b11111100;
+
+      bufferIndex = 0;
+    }
+
+	image.setPixelColor(Jimp.rgbaToInt(0x00, 0xFF, 0xFF, 0xFF), x, sampBuffer[bufferIndex++]>>>2);
+	
+/*
     let s1 = sample[ sampCounter ];
     let s2 = sample[ sampCounter + 1 ];
     let s = 0;
@@ -42,11 +62,9 @@ let image = new Jimp(SAMPLE_SIZE, 64, function (err, image) {
         break;
       case 6:
         s = ((s1 << 6) & 0xFF) | ((s2 >> 2) & 0xFC);
-        /*
-        console.log( "s1 << 6:" + ((s1<<6) & 0xFF) );
-        console.log( "s2 >> 2:" + (s2>>>2) );
-        console.log( "(s2 >> 2) & 0xFC:" + ((s2>>>2) & 0xFC) );
-        */
+        //console.log( "s1 << 6:" + ((s1<<6) & 0xFF) );
+        //console.log( "s2 >> 2:" + (s2>>>2) );
+        //console.log( "(s2 >> 2) & 0xFC:" + ((s2>>>2) & 0xFC) );
         sampOffset = 4;
         sampCounter++;
         break;
@@ -54,7 +72,7 @@ let image = new Jimp(SAMPLE_SIZE, 64, function (err, image) {
     //output += (s>>>2) + " ";
     
 	image.setPixelColor(Jimp.rgbaToInt(0x00, 0xFF, 0xFF, 0xFF), x, s>>>2);
-    
+    */
     x++;
   }
 console.log( output );
