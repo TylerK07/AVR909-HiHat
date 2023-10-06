@@ -31,11 +31,15 @@ uint8_t  sample_direction = 0;                                       // Directio
 uint8_t  sample_buffer[4] = {0,0,0,0};                               // Contains the current 4 decompressed bytes
 uint8_t  buffer_index = 0;                                           // contains the index of the current decompressed byte in buffer
 
-#define  RETRIGGER_TIME 5;                                           // Number of milliseconds to wait before a sample can be retriggered
+#define  RETRIGGER_PER 5                                             // Number of milliseconds to wait before a sample can be retriggered
 unsigned long retrig = 0;                                            // Retriggering counter
 uint8_t  current_button = 0;                                         // Tracks which button is currently being pressed / triggered
 
+#define  PITCH_PER 5                                                 // Period between pitch control reads
+unsigned long pitch_time = 0;                                        // Time  that next pitch read occurs
 
+#define M_CLOCK_FRQ   25000000
+#define LOW_SAMP_FRQ  8000
 
 /*******************************************
 * Main Setup Function                      *
@@ -96,22 +100,29 @@ void playClosedHH(){
 * Main Loop Function                       *
 *******************************************/
 void loop() {
-  TCA0.SINGLE.PER = analogRead(PIN_PF0);                             // Set Timer Period based on value of Speed control 
+  float pVal;
+
+  if( pitch_time < millis() ){
+    pVal = analogRead(PIN_PF0);                                      // Grab the current voltage of the pitch input setting
+    TCA0.SINGLE.PER = (M_CLOCK_FRQ/LOW_SAMP_FRQ) / (pow(2, (pVal * 5)/1024)); // Calc period based on 1v/Oct input
+    pitch_time = millis() + PITCH_PER;                               // Reset the counter for pitch 
+  }
+
   if( retrig < millis() ){                                           // See if it is time to re-check the buttons
     if( (digitalRead(PIN_PA4)==0) || (digitalRead(PIN_PA6)==0) ){    // If Open HiHat buttons pressed
       if( current_button != 1 ) playOpenHH();                        // And it isn't already pressed, then play the OpenHH sample
       current_button = 1;                                            // Track that the OpenHH button is pressed
-      retrig = millis() + RETRIGGER_TIME;                            // Set a time to check things again in the future
+      retrig = millis() + RETRIGGER_PER;                             // Set a time to check things again in the future
     } 
     else if( (digitalRead(PIN_PA5)==0)||(digitalRead(PIN_PA7)==0) ){ // If Open HiHat button pressed
       if( current_button != 2 ) playClosedHH();                      // And it isn't already pressed, then play the ClosedHH sample
       current_button = 2;                                            // Track that the ClosedHH button is pressed
-      retrig = millis() + RETRIGGER_TIME;                            // Set a time to check things again in the future
+      retrig = millis() + RETRIGGER_PER;                             // Set a time to check things again in the future
     }
-    else current_button = 0;                                         // Track that no buttons are pressed
-
-  } else {
-    PORTC.OUTCLR = PIN_TRIGGER;                                      // Reset the trigger control so we can hit it again quickly
+    else{
+      current_button = 0;                                            // Track that no buttons are pressed
+      PORTC.OUTCLR = PIN_TRIGGER;                                    // Reset the trigger control so we can hit it again quickly
+    }
   }
 }
 
